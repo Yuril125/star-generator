@@ -304,17 +304,13 @@ function drawCircles(ctx: CanvasRenderingContext2D, circles: Circle[]): void {
     }
 }
 
-let ctx: CanvasRenderingContext2D | null;
-
 document.addEventListener("DOMContentLoaded", function () {
     const canvasElt = <HTMLCanvasElement>document.getElementById("background-canvas");
     canvasElt.width = window.innerWidth;
     canvasElt.height = window.innerHeight;
-    ctx = canvasElt.getContext("2d", { alpha: false });
-    if (ctx === null) {
-        throw new Error("2d context not supported");
-    }
-    const obs = new Observer(1, 3, 1e-4,[canvasElt.width / 2, canvasElt.height / 2]);
+    const ctx = canvasElt.getContext("2d", { alpha: false })
+        ?? (function () { throw new Error("2d context not supported"); })();
+    const obs = new Observer(1, 3, 1e-4, [canvasElt.width / 2, canvasElt.height / 2]);
     let lastUpdated = performance.now();
     function render(): void {
         const timeNow = performance.now();
@@ -329,8 +325,8 @@ document.addEventListener("DOMContentLoaded", function () {
         obs.setWindow([canvasElt.width / 2, canvasElt.height / 2]);
         obs.universe.translateY(timeElapsed * 0.02);
         const flattened: Circle[] = obs.flatten();
-        ctx!.clearRect(0, 0, canvasElt.width, canvasElt.height);
-        drawCircles(ctx!, flattened);
+        ctx.clearRect(0, 0, canvasElt.width, canvasElt.height);
+        drawCircles(ctx, flattened);
         requestAnimationFrame(render);
     }
     render();

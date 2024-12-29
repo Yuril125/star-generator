@@ -241,15 +241,12 @@ function drawCircles(ctx, circles) {
         ctx.fill();
     }
 }
-let ctx;
 document.addEventListener("DOMContentLoaded", function () {
     const canvasElt = document.getElementById("background-canvas");
     canvasElt.width = window.innerWidth;
     canvasElt.height = window.innerHeight;
-    ctx = canvasElt.getContext("2d", { alpha: false });
-    if (ctx === null) {
-        throw new Error("2d context not supported");
-    }
+    const ctx = canvasElt.getContext("2d", { alpha: false })
+        ?? (function () { throw new Error("2d context not supported"); })();
     const obs = new Observer(1, 3, 1e-4, [canvasElt.width / 2, canvasElt.height / 2]);
     let lastUpdated = performance.now();
     function render() {
