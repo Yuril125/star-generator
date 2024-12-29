@@ -16,9 +16,9 @@ function randRange(min: number, max: number) {
 }
 
 function pxConstrain(n: number): number {
-    if (n < 0) return 0;
-    if (n > 255) return 255;
-    return n;
+    if (n <= 0) return 0;
+    if (n >= 255) return 255;
+    return Math.floor(n);
 }
 
 function tempToRgb(kelvin: number): RgbColor {
@@ -36,6 +36,13 @@ function tempToRgb(kelvin: number): RgbColor {
             : pxConstrain(138.5177312231 * Math.log(hectokelvin - 10)
                 - 305.0447927307)));
     return [red, green, blue];
+}
+
+function toRgbHex(color: RgbColor, opacity: number): number {
+    return ((color[0] & 0xF0) * 0x1000000)
+        + ((color[1] & 0xF0) * 0x10000)
+        + ((color[2] & 0xF0) * 0x100)
+        + (Math.floor(opacity * 255) & 0xF0);
 }
 
 class Range3D {
@@ -112,7 +119,6 @@ class Universe {
             : ((Math.random() < fracPart)
                 ? Math.floor(numStars)
                 : Math.ceil(numStars)));
-        console.log("Started generating stars:", genStars);
         for (let i = 0; i < genStars; i++) {
             this.stars.push(new Star(range));
         }
@@ -271,36 +277,49 @@ class Observer {
 }
 
 function drawCircle(ctx: CanvasRenderingContext2D, circle: Circle): void {
-    ctx.fillStyle = `rgb(${circle.color.join(" ")} / ${circle.opacity * 100}%)`;
+    const fillStyleText = "#" + circle.color.map(n => n.toString(16)).join("") + Math.floor(circle.opacity * 255).toString(16);
+    ctx.fillStyle = fillStyleText;
     ctx.beginPath();
     ctx.arc(circle.position[0], circle.position[1], circle.radius,
         0, 2 * Math.PI);
     ctx.fill();
 }
 
-function profile(name: string, f: () => any) {
-    const startTime = performance.now();
-    const temp = f();
-    const elapsed = performance.now() - startTime;
-    console.log(name, elapsed);
-    return temp;
+function drawCircles(ctx: CanvasRenderingContext2D, circles: Circle[]): void {
+    const cWithHex = circles.map(c => ({
+        radius: c.radius,
+        position: c.position,
+        hex: toRgbHex(c.color, c.opacity)
+    }));
+    cWithHex.sort((c1, c2) => c1.hex - c2.hex);
+    let prevHex = -1;
+    for (const c of cWithHex) {
+        if (c.hex !== prevHex) {
+            ctx.fillStyle = "#" + c.hex.toString(16).padStart(8, "0");
+            prevHex = c.hex;
+        }
+        ctx.beginPath();
+        ctx.arc(c.position[0], c.position[1], c.radius, 0, 2 * Math.PI);
+        ctx.fill();
+    }
 }
+
+let ctx: CanvasRenderingContext2D | null;
 
 document.addEventListener("DOMContentLoaded", function () {
     const canvasElt = <HTMLCanvasElement>document.getElementById("background-canvas");
     canvasElt.width = window.innerWidth;
     canvasElt.height = window.innerHeight;
-    const ctx = canvasElt.getContext("2d", {alpha: false});
+    ctx = canvasElt.getContext("2d", { alpha: false });
     if (ctx === null) {
         throw new Error("2d context not supported");
     }
-    const obs = new Observer(1, 3, 1e-4, [canvasElt.width / 2, canvasElt.height / 2]);
+    const obs = new Observer(1, 3, 1e-4,[canvasElt.width / 2, canvasElt.height / 2]);
     let lastUpdated = performance.now();
     function render(): void {
         const timeNow = performance.now();
         const timeElapsed = timeNow - lastUpdated;
         lastUpdated = timeNow;
-        console.log("Time since last frame:", timeElapsed);
         if (canvasElt.width !== window.innerWidth) {
             canvasElt.width = window.innerWidth;
         }
@@ -308,12 +327,10 @@ document.addEventListener("DOMContentLoaded", function () {
             canvasElt.height = window.innerHeight;
         }
         obs.setWindow([canvasElt.width / 2, canvasElt.height / 2]);
-        profile("Translate:", () => obs.universe.translateY(timeElapsed * 0.02));
-        const flattened: Circle[] = profile("Flatten:", () => obs.flatten());
-        profile("Draw:", () => {
-            ctx!.clearRect(0, 0, canvasElt.width, canvasElt.height);
-            flattened.forEach((circle) => drawCircle(ctx!, circle));
-        });
+        obs.universe.translateY(timeElapsed * 0.02);
+        const flattened: Circle[] = obs.flatten();
+        ctx!.clearRect(0, 0, canvasElt.width, canvasElt.height);
+        drawCircles(ctx!, flattened);
         requestAnimationFrame(render);
     }
     render();

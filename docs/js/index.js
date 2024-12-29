@@ -3,11 +3,11 @@ function randRange(min, max) {
     return Math.random() * (max - min) + min;
 }
 function pxConstrain(n) {
-    if (n < 0)
+    if (n <= 0)
         return 0;
-    if (n > 255)
+    if (n >= 255)
         return 255;
-    return n;
+    return Math.floor(n);
 }
 function tempToRgb(kelvin) {
     const hectokelvin = kelvin / 100;
@@ -24,6 +24,12 @@ function tempToRgb(kelvin) {
             : pxConstrain(138.5177312231 * Math.log(hectokelvin - 10)
                 - 305.0447927307)));
     return [red, green, blue];
+}
+function toRgbHex(color, opacity) {
+    return ((color[0] & 0xF0) * 0x1000000)
+        + ((color[1] & 0xF0) * 0x10000)
+        + ((color[2] & 0xF0) * 0x100)
+        + (Math.floor(opacity * 255) & 0xF0);
 }
 class Range3D {
     lowerBound;
@@ -86,7 +92,6 @@ class Universe {
             : ((Math.random() < fracPart)
                 ? Math.floor(numStars)
                 : Math.ceil(numStars)));
-        console.log("Started generating stars:", genStars);
         for (let i = 0; i < genStars; i++) {
             this.stars.push(new Star(range));
         }
@@ -212,23 +217,36 @@ class Observer {
     }
 }
 function drawCircle(ctx, circle) {
-    ctx.fillStyle = `rgb(${circle.color.join(" ")} / ${circle.opacity * 100}%)`;
+    const fillStyleText = "#" + circle.color.map(n => n.toString(16)).join("") + Math.floor(circle.opacity * 255).toString(16);
+    ctx.fillStyle = fillStyleText;
     ctx.beginPath();
     ctx.arc(circle.position[0], circle.position[1], circle.radius, 0, 2 * Math.PI);
     ctx.fill();
 }
-function profile(name, f) {
-    const startTime = performance.now();
-    const temp = f();
-    const elapsed = performance.now() - startTime;
-    console.log(name, elapsed);
-    return temp;
+function drawCircles(ctx, circles) {
+    const cWithHex = circles.map(c => ({
+        radius: c.radius,
+        position: c.position,
+        hex: toRgbHex(c.color, c.opacity)
+    }));
+    cWithHex.sort((c1, c2) => c1.hex - c2.hex);
+    let prevHex = -1;
+    for (const c of cWithHex) {
+        if (c.hex !== prevHex) {
+            ctx.fillStyle = "#" + c.hex.toString(16).padStart(8, "0");
+            prevHex = c.hex;
+        }
+        ctx.beginPath();
+        ctx.arc(c.position[0], c.position[1], c.radius, 0, 2 * Math.PI);
+        ctx.fill();
+    }
 }
+let ctx;
 document.addEventListener("DOMContentLoaded", function () {
     const canvasElt = document.getElementById("background-canvas");
     canvasElt.width = window.innerWidth;
     canvasElt.height = window.innerHeight;
-    const ctx = canvasElt.getContext("2d", { alpha: false });
+    ctx = canvasElt.getContext("2d", { alpha: false });
     if (ctx === null) {
         throw new Error("2d context not supported");
     }
@@ -238,7 +256,6 @@ document.addEventListener("DOMContentLoaded", function () {
         const timeNow = performance.now();
         const timeElapsed = timeNow - lastUpdated;
         lastUpdated = timeNow;
-        console.log("Time since last frame:", timeElapsed);
         if (canvasElt.width !== window.innerWidth) {
             canvasElt.width = window.innerWidth;
         }
@@ -246,12 +263,10 @@ document.addEventListener("DOMContentLoaded", function () {
             canvasElt.height = window.innerHeight;
         }
         obs.setWindow([canvasElt.width / 2, canvasElt.height / 2]);
-        profile("Translate:", () => obs.universe.translateY(timeElapsed * 0.02));
-        const flattened = profile("Flatten:", () => obs.flatten());
-        profile("Draw:", () => {
-            ctx.clearRect(0, 0, canvasElt.width, canvasElt.height);
-            flattened.forEach((circle) => drawCircle(ctx, circle));
-        });
+        obs.universe.translateY(timeElapsed * 0.02);
+        const flattened = obs.flatten();
+        ctx.clearRect(0, 0, canvasElt.width, canvasElt.height);
+        drawCircles(ctx, flattened);
         requestAnimationFrame(render);
     }
     render();
