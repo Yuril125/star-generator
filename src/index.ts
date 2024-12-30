@@ -6,7 +6,7 @@ const MAX_TEMP = 30000;
 
 const STELLAR_DENSITY = 1e-4;
 
-const MOVE_SPEED = 0.02;
+const MOVE_SPEED = 0.008;
 
 let windowXBound = window.innerWidth / 2;
 let lastWindowXBound = 0;
